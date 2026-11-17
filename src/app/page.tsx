@@ -168,6 +168,57 @@ export default function CoordinatorPortal() {
     }
   };
 
+  const fetchLeavesAndSubstitutions = async () => {
+    try {
+      const [leavesRes, subsRes] = await Promise.all([
+        fetch('/api/leaves'),
+        fetch('/api/substitutions'),
+      ]);
+      if (leavesRes.ok) {
+        const leavesData = await leavesRes.json();
+        if (Array.isArray(leavesData)) {
+          const mappedLeaves: LeaveRequest[] = leavesData.map((l: any) => ({
+            Leave_ID: l.leave_id || l.Leave_ID,
+            Faculty_ID: l.faculty_id || l.Faculty_ID,
+            From_Date: l.from_date || l.From_Date,
+            To_Date: l.to_date || l.To_Date,
+            Reason: l.reason || l.Reason,
+            Status: l.status || l.Status || 'Reported',
+          }));
+          setLeaveRequests(mappedLeaves);
+        }
+      }
+      if (subsRes.ok) {
+        const subsData = await subsRes.json();
+        if (Array.isArray(subsData)) {
+          const mappedSubs: Substitution[] = subsData.map((s: any) => ({
+            Sub_ID: s.sub_id || s.Sub_ID,
+            Leave_ID: s.leave_id || s.Leave_ID,
+            Session_ID: s.entry_id || s.session_id || s.Session_ID,
+            Substitute_Faculty_ID: s.substitute_faculty_id || s.Substitute_Faculty_ID,
+            Sub_Date: s.sub_date || s.Sub_Date,
+            Action: s.action || s.Action || 'Substituted',
+            Status: s.status || s.Status || 'OPEN_FOR_CLAIM',
+          }));
+          setSubstitutions(mappedSubs);
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to fetch leaves/substitutions:', e);
+    }
+  };
+
+  useEffect(() => {
+    fetchLeavesAndSubstitutions();
+    const interval = setInterval(fetchLeavesAndSubstitutions, 3000);
+    const handleRefresh = () => fetchLeavesAndSubstitutions();
+    window.addEventListener('vjti_refresh_data', handleRefresh);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('vjti_refresh_data', handleRefresh);
+    };
+  }, [activeTab]);
+
   // Master Data Context for validation
   const masterDataContext: MasterDataContext = useMemo(
     () => ({
@@ -454,6 +505,22 @@ export default function CoordinatorPortal() {
     };
     setNotifications([notif, ...notifications]);
 
+    try {
+      void fetch('/api/substitutions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          leave_id: leaveId,
+          entry_id: sessionId,
+          substitute_faculty_id: substituteFacultyId,
+          sub_date: subDate,
+          action: 'Substituted',
+        }),
+      }).then(() => {
+        fetchLeavesAndSubstitutions();
+      });
+    } catch {}
+
     alert('Substitute successfully confirmed! Session updated, logged to audit trail, and notification dispatched.');
   };
 
@@ -616,9 +683,10 @@ export default function CoordinatorPortal() {
                 rooms={rooms}
                 facultySubjects={facultySubjects}
                 facultyAvailability={facultyAvailability}
-                onAddLeaveRequest={(newLeave) =>
-                  setLeaveRequests([newLeave, ...leaveRequests])
-                }
+                onAddLeaveRequest={(newLeave) => {
+                  setLeaveRequests((prev) => [newLeave, ...prev.filter((l) => l.Leave_ID !== newLeave.Leave_ID)]);
+                  fetchLeavesAndSubstitutions();
+                }}
                 onConfirmSubstitution={handleConfirmSubstitution}
                 onRescheduleSession={(leaveId, sessId, newSlotId, reason) => {
                   setSessions(

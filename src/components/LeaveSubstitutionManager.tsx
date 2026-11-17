@@ -17,20 +17,16 @@ import {
 import {
   getAffectedSessionsForLeave,
   AffectedSessionDetails,
-  SubstituteCandidate,
 } from '../lib/substitutionEngine';
 import {
   UserCheck,
   Calendar,
-  AlertTriangle,
   CheckCircle2,
   Clock,
   Sparkles,
-  ArrowRight,
-  ShieldCheck,
   Plus,
-  Send,
   UserX,
+  RotateCcw,
 } from 'lucide-react';
 
 interface LeaveSubstitutionManagerProps {
@@ -73,18 +69,17 @@ export default function LeaveSubstitutionManager({
   facultyAvailability,
   onAddLeaveRequest,
   onConfirmSubstitution,
-  onRescheduleSession,
 }: LeaveSubstitutionManagerProps) {
   const [selectedLeaveId, setSelectedLeaveId] = useState<string>(
     leaveRequests[0]?.Leave_ID || ''
   );
 
-  // New leave modal state
   const [showAddLeaveModal, setShowAddLeaveModal] = useState(false);
   const [newFacultyId, setNewFacultyId] = useState(faculty[0]?.Faculty_ID || '');
   const [newFromDate, setNewFromDate] = useState('2026-10-20');
   const [newToDate, setNewToDate] = useState('2026-10-20');
   const [newReason, setNewReason] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const facultyMap = new Map(faculty.map((f) => [f.Faculty_ID, f]));
   const subjectMap = new Map(subjects.map((s) => [s.Subject_ID, s]));
@@ -92,9 +87,10 @@ export default function LeaveSubstitutionManager({
   const roomMap = new Map(rooms.map((r) => [r.Room_ID, r]));
   const slotMap = new Map(timeSlots.map((ts) => [ts.Slot_ID, ts]));
 
-  const activeLeave = leaveRequests.find((l) => l.Leave_ID === selectedLeaveId);
+  const activeLeave =
+    leaveRequests.find((l) => l.Leave_ID === selectedLeaveId) ||
+    leaveRequests[0];
 
-  // Calculate affected sessions for the active leave
   const affectedSessions: AffectedSessionDetails[] = activeLeave
     ? getAffectedSessionsForLeave(
         activeLeave,
@@ -107,28 +103,57 @@ export default function LeaveSubstitutionManager({
       )
     : [];
 
-  const handleCreateLeave = (e: React.FormEvent) => {
+  const handleCreateLeave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newReason.trim()) return;
 
-    const leave: LeaveRequest = {
-      Leave_ID: `LEV_${String(leaveRequests.length + 1).padStart(3, '0')}`,
-      Faculty_ID: newFacultyId,
-      From_Date: newFromDate,
-      To_Date: newToDate,
-      Reason: newReason,
-      Status: 'Reported',
-    };
+    setIsSubmitting(true);
+    try {
+      const res = await fetch('/api/leaves', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          facultyId: newFacultyId,
+          fromDate: newFromDate,
+          toDate: newToDate,
+          reason: newReason,
+        }),
+      });
 
-    onAddLeaveRequest(leave);
-    setSelectedLeaveId(leave.Leave_ID);
-    setShowAddLeaveModal(false);
-    setNewReason('');
+      const data = await res.json();
+      const leaveId = data.leave?.leave_id || `LEV_${Date.now()}`;
+      const leave: LeaveRequest = {
+        Leave_ID: leaveId,
+        Faculty_ID: newFacultyId,
+        From_Date: newFromDate,
+        To_Date: newToDate,
+        Reason: newReason,
+        Status: 'Reported',
+      };
+
+      onAddLeaveRequest(leave);
+      setSelectedLeaveId(leave.Leave_ID);
+    } catch {
+      const fallbackId = `LEV_${Date.now()}`;
+      const leave: LeaveRequest = {
+        Leave_ID: fallbackId,
+        Faculty_ID: newFacultyId,
+        From_Date: newFromDate,
+        To_Date: newToDate,
+        Reason: newReason,
+        Status: 'Reported',
+      };
+      onAddLeaveRequest(leave);
+      setSelectedLeaveId(leave.Leave_ID);
+    } finally {
+      setIsSubmitting(false);
+      setShowAddLeaveModal(false);
+      setNewReason('');
+    }
   };
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <div className="flex items-center space-x-2 text-indigo-600 text-xs font-bold uppercase tracking-wider">
@@ -153,7 +178,6 @@ export default function LeaveSubstitutionManager({
         </button>
       </div>
 
-      {/* FCFS Marketplace Overview Banner (Task 3) */}
       <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
         <div className="flex items-center space-x-3">
           <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold shadow-sm">
@@ -177,8 +201,119 @@ export default function LeaveSubstitutionManager({
         </Link>
       </div>
 
+      <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+          <div className="flex items-center space-x-2">
+            <Sparkles className="w-4 h-4 text-emerald-600" />
+            <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+              Live FCFS Open Lecture Claims & Peer Coverage Status
+            </h3>
+          </div>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => {
+                if (typeof window !== 'undefined') {
+                  window.dispatchEvent(new CustomEvent('vjti_refresh_data'));
+                }
+              }}
+              className="px-2.5 py-1 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors flex items-center space-x-1"
+              title="Refresh live leaves and substitution status"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Refresh</span>
+            </button>
+            <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+              {substitutions.filter((s) => s.Status === 'OPEN_FOR_CLAIM').length} Open for Claim
+            </span>
+          </div>
+        </div>
+
+        {substitutions.length === 0 ? (
+          <div className="p-6 text-center text-slate-400 bg-slate-50/50 rounded-xl border border-dashed border-slate-200 text-xs">
+            No open or claimed lecture substitutions active right now. When a professor reports leave, their sessions will appear here as OPEN_FOR_CLAIM for peers to claim under FCFS.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
+                  <th className="py-2.5 px-3">Date</th>
+                  <th className="py-2.5 px-3">Session / Subject</th>
+                  <th className="py-2.5 px-3">Faculty on Leave</th>
+                  <th className="py-2.5 px-3">Claim Status</th>
+                  <th className="py-2.5 px-3">Assigned / Claiming Faculty</th>
+                  <th className="py-2.5 px-3 text-right">Action / Link</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {substitutions.map((sub) => {
+                  const leave = leaveRequests.find((l) => l.Leave_ID === sub.Leave_ID);
+                  const origFac = leave ? facultyMap.get(leave.Faculty_ID) : null;
+                  const sess = sessions.find((s) => s.Session_ID === sub.Session_ID);
+                  const subObj = sess
+                    ? subjectMap.get(sess.Subject_ID)
+                    : subjects.find((s) => sub.Session_ID.includes(s.Subject_ID)) ||
+                      (sub.Session_ID.includes('PMC') ? { Subject_Name: 'Major Project', Subject_Code: 'PROJ4' } : null);
+                  const slot = sess ? slotMap.get(sess.Slot_ID) : timeSlots.find((ts) => sub.Session_ID.includes(ts.Slot_ID));
+                  const claimFac = sub.Substitute_Faculty_ID ? facultyMap.get(sub.Substitute_Faculty_ID) : null;
+
+                  return (
+                    <tr key={sub.Sub_ID} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="py-3 px-3 font-semibold text-slate-800 font-mono">
+                        {sub.Sub_Date}
+                      </td>
+                      <td className="py-3 px-3">
+                        <div className="font-bold text-slate-900">{subObj?.Subject_Name || sub.Session_ID}</div>
+                        <div className="text-[10px] text-slate-500 font-mono">
+                          {slot ? `${slot.Day} P${slot.Period_No} (${slot.Start_Time}-${slot.End_Time})` : sub.Session_ID}
+                        </div>
+                      </td>
+                      <td className="py-3 px-3 text-slate-700 font-medium">
+                        {origFac?.Faculty_Name || leave?.Faculty_ID || 'Faculty on Leave'}
+                      </td>
+                      <td className="py-3 px-3">
+                        {sub.Status === 'OPEN_FOR_CLAIM' ? (
+                          <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                            <Clock className="w-3 h-3 text-amber-600" />
+                            <span>OPEN FOR CLAIM (FCFS)</span>
+                          </span>
+                        ) : sub.Status === 'CLAIMED' ? (
+                          <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                            <span>CLAIMED (FCFS)</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">
+                            <UserCheck className="w-3 h-3 text-indigo-600" />
+                            <span>{sub.Status}</span>
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 px-3 font-medium">
+                        {claimFac ? (
+                          <span className="text-emerald-700 font-bold">{claimFac.Faculty_Name}</span>
+                        ) : (
+                          <span className="text-slate-400 italic">Awaiting peer claim</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-3 text-right">
+                        <Link
+                          href="/faculty"
+                          className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 hover:underline"
+                        >
+                          View in Faculty Portal &rarr;
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column: Recorded Leave Requests List */}
         <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
           <div className="flex items-center justify-between pb-3 border-b border-slate-100">
             <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
@@ -190,55 +325,64 @@ export default function LeaveSubstitutionManager({
           </div>
 
           <div className="space-y-3">
-            {leaveRequests.map((leave) => {
-              const fac = facultyMap.get(leave.Faculty_ID);
-              const isSelected = selectedLeaveId === leave.Leave_ID;
+            {leaveRequests.length === 0 ? (
+              <div className="p-6 text-center text-slate-400 bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
+                <Clock className="w-7 h-7 mx-auto text-slate-300 mb-2" />
+                <p className="text-xs font-semibold text-slate-600">No active leave requests</p>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Click &quot;Record Faculty Leave&quot; above to report a professor&apos;s absence.
+                </p>
+              </div>
+            ) : (
+              leaveRequests.map((leave) => {
+                const fac = facultyMap.get(leave.Faculty_ID);
+                const isSelected = (activeLeave?.Leave_ID === leave.Leave_ID);
 
-              return (
-                <div
-                  key={leave.Leave_ID}
-                  onClick={() => setSelectedLeaveId(leave.Leave_ID)}
-                  className={`p-4 rounded-xl border transition-all cursor-pointer ${
-                    isSelected
-                      ? 'border-indigo-600 ring-2 ring-indigo-500/20 bg-indigo-50/30'
-                      : 'border-slate-200 hover:border-slate-300 bg-white'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-extrabold text-slate-900">
-                      {fac?.Faculty_Name || leave.Faculty_ID}
-                    </span>
-                    <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        leave.Status === 'Reported'
-                          ? 'bg-amber-100 text-amber-800'
-                          : leave.Status === 'Processed'
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : 'bg-slate-100 text-slate-600'
-                      }`}
-                    >
-                      {leave.Status}
-                    </span>
+                return (
+                  <div
+                    key={leave.Leave_ID}
+                    onClick={() => setSelectedLeaveId(leave.Leave_ID)}
+                    className={`p-4 rounded-xl border transition-all cursor-pointer ${
+                      isSelected
+                        ? 'border-indigo-600 ring-2 ring-indigo-500/20 bg-indigo-50/30'
+                        : 'border-slate-200 hover:border-slate-300 bg-white'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-extrabold text-slate-900">
+                        {fac?.Faculty_Name || leave.Faculty_ID}
+                      </span>
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          leave.Status === 'Reported'
+                            ? 'bg-amber-100 text-amber-800'
+                            : leave.Status === 'Processed'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : 'bg-slate-100 text-slate-600'
+                        }`}
+                      >
+                        {leave.Status}
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-slate-600 mt-1 line-clamp-2">{leave.Reason}</p>
+
+                    <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+                      <span className="flex items-center space-x-1 font-mono">
+                        <Calendar className="w-3.5 h-3.5 text-indigo-500" />
+                        <span>{leave.From_Date}</span>
+                      </span>
+                      <span className="font-semibold text-indigo-600 text-[10px]">
+                        View Impact →
+                      </span>
+                    </div>
                   </div>
-
-                  <p className="text-xs text-slate-600 mt-1 line-clamp-2">{leave.Reason}</p>
-
-                  <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-                    <span className="flex items-center space-x-1 font-mono">
-                      <Calendar className="w-3.5 h-3.5 text-indigo-500" />
-                      <span>{leave.From_Date}</span>
-                    </span>
-                    <span className="font-semibold text-indigo-600 text-[10px]">
-                      View Impact →
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         </div>
 
-        {/* Right 2 Columns: Impacted Sessions & Recommendation Engine */}
         <div className="lg:col-span-2 space-y-6">
           {activeLeave ? (
             <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-5">
@@ -261,7 +405,6 @@ export default function LeaveSubstitutionManager({
                 </div>
               </div>
 
-              {/* Affected Sessions */}
               <div>
                 <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-3">
                   Affected Scheduled Sessions ({affectedSessions.length})
@@ -307,7 +450,6 @@ export default function LeaveSubstitutionManager({
                             </div>
                           </div>
 
-                          {/* Smart Candidate Suggestions (Process 5.0 / FR-11) */}
                           <div>
                             <div className="flex items-center space-x-2 mb-2.5">
                               <Sparkles className="w-4 h-4 text-amber-500" />
@@ -393,7 +535,6 @@ export default function LeaveSubstitutionManager({
         </div>
       </div>
 
-      {/* Record Leave Modal */}
       {showAddLeaveModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 p-6 space-y-4">
@@ -464,9 +605,10 @@ export default function LeaveSubstitutionManager({
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-1.5 bg-indigo-600 text-white rounded-lg font-bold shadow-sm"
+                  disabled={isSubmitting}
+                  className="px-4 py-1.5 bg-indigo-600 text-white rounded-lg font-bold shadow-sm disabled:opacity-50"
                 >
-                  Record Leave & Find Substitutes
+                  {isSubmitting ? 'Recording...' : 'Record Leave & Broadcast (FCFS)'}
                 </button>
               </div>
             </form>
@@ -476,4 +618,3 @@ export default function LeaveSubstitutionManager({
     </div>
   );
 }
-

@@ -43,8 +43,331 @@ export class DatabaseStore {
   public changeLogs = new Map<string, ChangeLogEntity>();
   public notifications = new Map<string, NotificationEntity>();
 
+  public isSupabaseConnected: boolean = false;
+  private supabaseInitPromise: Promise<boolean> | null = null;
+
   constructor() {
     this.seed();
+    if (typeof window === 'undefined' && process.env.DATABASE_URL) {
+      void this.ensureInitialized();
+    }
+  }
+
+  public async ensureInitialized(): Promise<void> {
+    if (!this.supabaseInitPromise) {
+      this.supabaseInitPromise = this.syncFromSupabase();
+    }
+    await this.supabaseInitPromise;
+  }
+
+  public async syncFromSupabase(): Promise<boolean> {
+    const connStr = process.env.DATABASE_URL;
+    if (!connStr) {
+      this.isSupabaseConnected = false;
+      return false;
+    }
+
+    try {
+      let pg: any;
+      try {
+        pg = require('pg');
+      } catch {
+        pg = null;
+      }
+      if (!pg) {
+        this.isSupabaseConnected = false;
+        return false;
+      }
+
+      const client = new pg.Client({
+        connectionString: connStr,
+        ssl: { rejectUnauthorized: false },
+        connectionTimeoutMillis: 4000,
+      });
+
+      await client.connect();
+
+      const deptRes = await client.query('SELECT * FROM departments');
+      const usersRes = await client.query('SELECT * FROM users');
+      const termsRes = await client.query('SELECT * FROM academic_terms');
+      const facRes = await client.query('SELECT * FROM faculty');
+      const subjRes = await client.query('SELECT * FROM subjects');
+      const facSubjRes = await client.query('SELECT * FROM faculty_subjects');
+      const batchRes = await client.query('SELECT * FROM batches');
+      const roomRes = await client.query('SELECT * FROM rooms');
+      const slotsRes = await client.query('SELECT * FROM time_slots ORDER BY slot_id');
+      const sessRes = await client.query('SELECT * FROM sessions');
+      const sessBatchRes = await client.query('SELECT * FROM session_batches');
+      const ttRes = await client.query('SELECT * FROM timetables');
+      const entriesRes = await client.query('SELECT * FROM timetable_entries');
+      const entryBatchRes = await client.query('SELECT * FROM entry_batches');
+      const leavesRes = await client.query('SELECT * FROM leave_requests');
+      const subsRes = await client.query('SELECT * FROM substitutions');
+      const notifRes = await client.query('SELECT * FROM notifications');
+
+      await client.end();
+
+      if (deptRes.rows.length > 0) {
+        this.departments.clear();
+        for (const row of deptRes.rows) {
+          this.departments.set(row.department_id, {
+            department_id: row.department_id,
+            name: row.name,
+            code: row.code,
+            created_at: row.created_at?.toISOString?.() || String(row.created_at || ''),
+          });
+        }
+      }
+
+      if (usersRes.rows.length > 0) {
+        this.users.clear();
+        for (const row of usersRes.rows) {
+          this.users.set(row.user_id, {
+            user_id: row.user_id,
+            name: row.name,
+            email: row.email,
+            password_hash: row.password_hash,
+            role: row.role,
+            department_id: row.department_id,
+            created_at: row.created_at?.toISOString?.() || String(row.created_at || ''),
+          });
+        }
+      }
+
+      if (termsRes.rows.length > 0) {
+        this.academicTerms.clear();
+        for (const row of termsRes.rows) {
+          this.academicTerms.set(row.term_id, {
+            term_id: row.term_id,
+            name: row.name,
+            department_id: row.department_id,
+            start_date: row.start_date?.toISOString?.()?.split('T')[0] || String(row.start_date || ''),
+            end_date: row.end_date?.toISOString?.()?.split('T')[0] || String(row.end_date || ''),
+            is_active: Boolean(row.is_active),
+          });
+        }
+      }
+
+      if (facRes.rows.length > 0) {
+        this.faculty.clear();
+        for (const row of facRes.rows) {
+          this.faculty.set(row.faculty_id, {
+            faculty_id: row.faculty_id,
+            user_id: row.user_id,
+            department_id: row.department_id,
+            name: row.name,
+            email: row.email,
+            max_weekly_load: row.max_weekly_load,
+          });
+        }
+      }
+
+      if (subjRes.rows.length > 0) {
+        this.subjects.clear();
+        for (const row of subjRes.rows) {
+          this.subjects.set(row.subject_id, {
+            subject_id: row.subject_id,
+            department_id: row.department_id || 'dept-ce',
+            name: row.name,
+            code: row.code,
+            type: row.type || 'Theory',
+            credits: row.credits || 3,
+            hours_per_week: row.hours_per_week || 3,
+            requires_lab: Boolean(row.requires_lab),
+          });
+        }
+      }
+
+      if (facSubjRes.rows.length > 0) {
+        this.facultySubjects.clear();
+        for (const row of facSubjRes.rows) {
+          this.facultySubjects.set(`${row.faculty_id}_${row.subject_id}`, {
+            faculty_id: row.faculty_id,
+            subject_id: row.subject_id,
+          });
+        }
+      }
+
+      if (batchRes.rows.length > 0) {
+        this.batches.clear();
+        for (const row of batchRes.rows) {
+          this.batches.set(row.batch_id, {
+            batch_id: row.batch_id,
+            department_id: row.department_id,
+            division: row.division,
+            year: row.year,
+            strength: row.strength,
+            parent_batch_id: row.parent_batch_id,
+          });
+        }
+      }
+
+      if (roomRes.rows.length > 0) {
+        this.rooms.clear();
+        for (const row of roomRes.rows) {
+          this.rooms.set(row.room_id, {
+            room_id: row.room_id,
+            room_no: row.room_no,
+            capacity: row.capacity,
+            type: row.type,
+          });
+        }
+      }
+
+      if (slotsRes.rows.length > 0) {
+        this.timeSlots.clear();
+        for (const row of slotsRes.rows) {
+          this.timeSlots.set(row.slot_id, {
+            slot_id: row.slot_id,
+            day: row.day,
+            period_no: row.period_no,
+            start_time: row.start_time,
+            end_time: row.end_time,
+          });
+        }
+      }
+
+      if (sessRes.rows.length > 0) {
+        this.sessions.clear();
+        const batchMap = new Map<string, string[]>();
+        for (const sb of sessBatchRes.rows) {
+          const list = batchMap.get(sb.session_id) || [];
+          list.push(sb.batch_id);
+          batchMap.set(sb.session_id, list);
+        }
+        for (const row of sessRes.rows) {
+          this.sessions.set(row.session_id, {
+            session_id: row.session_id,
+            timetable_id: row.timetable_id,
+            subject_id: row.subject_id,
+            faculty_id: row.faculty_id,
+            room_id: row.room_id,
+            session_type: row.session_type,
+            duration_slots: row.duration_slots,
+            weekly_frequency: row.weekly_frequency,
+            batch_ids: batchMap.get(row.session_id) || [],
+          });
+        }
+      }
+
+      if (ttRes.rows.length > 0) {
+        this.timetables.clear();
+        for (const row of ttRes.rows) {
+          this.timetables.set(row.timetable_id, {
+            timetable_id: row.timetable_id,
+            term_id: row.term_id || row.academic_term_id || 'term-2026-odd',
+            version_no: row.version_no || 1,
+            status: row.status || 'Published',
+            created_by: row.created_by || 'u-coord',
+            created_at: row.created_at?.toISOString?.() || String(row.created_at || new Date().toISOString()),
+            published_at: row.published_at?.toISOString?.() || row.published_at || null,
+          });
+        }
+      }
+
+      if (entriesRes.rows.length > 0) {
+        this.timetableEntries.clear();
+        const entryBatchMap = new Map<string, string[]>();
+        for (const eb of entryBatchRes.rows) {
+          const list = entryBatchMap.get(eb.entry_id) || [];
+          list.push(eb.batch_id);
+          entryBatchMap.set(eb.entry_id, list);
+        }
+        for (const row of entriesRes.rows) {
+          this.timetableEntries.set(row.entry_id, {
+            entry_id: row.entry_id,
+            timetable_id: row.timetable_id,
+            session_id: row.session_id,
+            slot_id: row.slot_id,
+            room_id: row.room_id,
+            faculty_id: row.faculty_id,
+            batch_ids: entryBatchMap.get(row.entry_id) || [],
+            created_at: row.created_at?.toISOString?.() || String(row.created_at || ''),
+          });
+        }
+      }
+
+      for (const row of leavesRes.rows) {
+        this.leaveRequests.set(row.leave_id, {
+          leave_id: row.leave_id,
+          faculty_id: row.faculty_id,
+          from_date: row.from_date?.toISOString?.()?.split('T')[0] || String(row.from_date || ''),
+          to_date: row.to_date?.toISOString?.()?.split('T')[0] || String(row.to_date || ''),
+          reason: row.reason,
+          status: row.status,
+          created_at: row.created_at?.toISOString?.() || String(row.created_at || ''),
+        });
+      }
+
+      for (const row of subsRes.rows) {
+        this.substitutions.set(row.sub_id, {
+          sub_id: row.sub_id,
+          leave_id: row.leave_id,
+          entry_id: row.entry_id,
+          substitute_faculty_id: row.substitute_faculty_id,
+          rescheduled_slot_id: row.rescheduled_slot_id,
+          rescheduled_room_id: row.rescheduled_room_id,
+          sub_date: row.sub_date?.toISOString?.()?.split('T')[0] || String(row.sub_date || ''),
+          action: row.action,
+          status: row.status,
+          logged_at: row.logged_at?.toISOString?.() || String(row.logged_at || ''),
+        });
+      }
+
+      for (const row of notifRes.rows) {
+        this.notifications.set(row.notif_id, {
+          notif_id: row.notif_id,
+          recipient_id: row.recipient_id,
+          message: row.message,
+          is_read: Boolean(row.is_read),
+          sent_on: row.sent_on?.toISOString?.() || String(row.sent_on || ''),
+        });
+      }
+
+      this.isSupabaseConnected = true;
+      return true;
+    } catch {
+      this.isSupabaseConnected = false;
+      return false;
+    }
+  }
+
+  public async persistLeaveRequest(leave: LeaveRequestEntity): Promise<void> {
+    if (!process.env.DATABASE_URL) return;
+    try {
+      const pg = require('pg');
+      const client = new pg.Client({
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false },
+        connectionTimeoutMillis: 3000,
+      });
+      await client.connect();
+      await client.query(
+        'INSERT INTO leave_requests (leave_id, faculty_id, from_date, to_date, reason, status) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (leave_id) DO NOTHING',
+        [leave.leave_id, leave.faculty_id, leave.from_date, leave.to_date, leave.reason, leave.status]
+      );
+      this.isSupabaseConnected = true;
+      await client.end();
+    } catch {}
+  }
+
+  public async persistSubstitution(sub: SubstitutionEntity): Promise<void> {
+    if (!process.env.DATABASE_URL) return;
+    try {
+      const pg = require('pg');
+      const client = new pg.Client({
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false },
+        connectionTimeoutMillis: 3000,
+      });
+      await client.connect();
+      await client.query(
+        'INSERT INTO substitutions (sub_id, leave_id, entry_id, substitute_faculty_id, rescheduled_slot_id, rescheduled_room_id, sub_date, action, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) ON CONFLICT (sub_id) DO UPDATE SET substitute_faculty_id = EXCLUDED.substitute_faculty_id, status = EXCLUDED.status',
+        [sub.sub_id, sub.leave_id, sub.entry_id, sub.substitute_faculty_id, sub.rescheduled_slot_id, sub.rescheduled_room_id, sub.sub_date, sub.action, sub.status]
+      );
+      this.isSupabaseConnected = true;
+      await client.end();
+    } catch {}
   }
 
   public reset() {
@@ -94,7 +417,7 @@ export class DatabaseStore {
     });
 
     // 3. Users & Faculty Roster (Sanitized + Whitelisted Test Emails)
-    const defaultHash = '$2a$10$wN9aEaVbE.yF961o1F3nDeGkP0BlnRzI3aC2o.y1J5rYI06Xv8Mne';
+    const defaultHash = '$2b$10$FFalzFCkYkUd5usodRgn2ONNJWPZhoRG9u281X2eDsCu16qRBHntq';
 
     this.users.set('u-coord', {
       user_id: 'u-coord',
@@ -108,7 +431,7 @@ export class DatabaseStore {
 
     const facultyList = [
       { id: 'FAC-PMC', name: 'Prof. P. M. Chawan', dept: 'dept-ce', email: 'tanishparekh03@gmail.com', load: 16 },
-      { id: 'FAC-VBN', name: 'Dr. V. B. Nikam', dept: 'dept-ce', email: 'vbnikam@dummy.ttms.local', load: 14 },
+      { id: 'FAC-VBN', name: 'Dr. V. B. Nikam', dept: 'dept-ce', email: 'tanishparekh59@gmail.com', load: 14 },
       { id: 'FAC-MRS', name: 'Dr. M. R. Shirole', dept: 'dept-ce', email: 'mrshirole@dummy.ttms.local', load: 14 },
       { id: 'FAC-MMC', name: 'Dr. M. M. Chandane', dept: 'dept-ce', email: 'mmchandane@dummy.ttms.local', load: 16 },
       { id: 'FAC-SCS', name: 'Prof. S. C. Shrawne', dept: 'dept-ce', email: 'scshrawne@dummy.ttms.local', load: 16 },
@@ -175,7 +498,7 @@ export class DatabaseStore {
       user_id: 'u-vbn',
       department_id: 'dept-ce',
       name: 'Dr. V. B. Nikam',
-      email: 'vbnikam@dummy.ttms.local',
+      email: 'tanishparekh59@gmail.com',
       max_weekly_load: 14,
     });
     this.faculty.set('FAC-003', {
@@ -187,11 +510,10 @@ export class DatabaseStore {
       max_weekly_load: 14,
     });
 
-    // Student user (Real Test Email)
     this.users.set('u-stud', {
       user_id: 'u-stud',
-      name: 'Tanish Parekh (VJTI Student)',
-      email: 'tanishparekh59@gmail.com',
+      name: 'VJTI Student',
+      email: 'student@dummy.ttms.local',
       password_hash: defaultHash,
       role: 'student',
       department_id: 'dept-ce',
@@ -439,6 +761,9 @@ export class DatabaseStore {
       { session_id: 'SESS-104', timetable_id: 'TT-2026-ODD', subject_id: 'SUB-CPAD-LAB', faculty_id: 'FAC-PV',  room_id: 'RM-LAB1A', session_type: 'Lab',     duration_slots: 2, weekly_frequency: 1, batch_ids: ['BATCH-BTECH-CE', 'BATCH-001'] },
       { session_id: 'SESS-105', timetable_id: 'TT-2026-ODD', subject_id: 'SUB-CC-CE',    faculty_id: 'FAC-AN',  room_id: 'RM-AL202', session_type: 'Lecture', duration_slots: 1, weekly_frequency: 3, batch_ids: ['BATCH-TY-CE', 'BATCH-001'] },
       { session_id: 'SESS-106', timetable_id: 'TT-2026-ODD', subject_id: 'SUB-OEII',     faculty_id: 'FAC-PV',  room_id: 'RM-AL004', session_type: 'Lecture', duration_slots: 1, weekly_frequency: 3, batch_ids: ['BATCH-BTECH-CE', 'BATCH-BTECH-IT', 'BATCH-001', 'BATCH-002'] },
+      { session_id: 'SESS-PMC-01', timetable_id: 'TT-2026-ODD', subject_id: 'SUB-PROJECT', faculty_id: 'FAC-PMC', room_id: 'RM-AL201', session_type: 'Lecture', duration_slots: 1, weekly_frequency: 3, batch_ids: ['BATCH-BTECH-CE'] },
+      { session_id: 'SESS-PMC-02', timetable_id: 'TT-2026-ODD', subject_id: 'SUB-PROJECT', faculty_id: 'FAC-PMC', room_id: 'RM-AL201', session_type: 'Lecture', duration_slots: 1, weekly_frequency: 3, batch_ids: ['BATCH-BTECH-CE'] },
+      { session_id: 'SESS-VBN-01', timetable_id: 'TT-2026-ODD', subject_id: 'SUB-CC-IT', faculty_id: 'FAC-VBN', room_id: 'RM-AL202', session_type: 'Lecture', duration_slots: 1, weekly_frequency: 3, batch_ids: ['BATCH-BTECH-IT'] },
     ];
     seedSessions.forEach((s) => this.sessions.set(s.session_id, s));
 
@@ -533,6 +858,36 @@ export class DatabaseStore {
         room_id: 'RM-AL202',
         faculty_id: 'FAC-AN',
         batch_ids: ['BATCH-TY-CE'],
+        created_at: new Date().toISOString(),
+      },
+      {
+        entry_id: 'ENT-PMC-1',
+        timetable_id: 'TT-2026-ODD',
+        session_id: 'SESS-PMC-01',
+        slot_id: 'SLOT-TUE-3',
+        room_id: 'RM-AL201',
+        faculty_id: 'FAC-PMC',
+        batch_ids: ['BATCH-BTECH-CE'],
+        created_at: new Date().toISOString(),
+      },
+      {
+        entry_id: 'ENT-PMC-2',
+        timetable_id: 'TT-2026-ODD',
+        session_id: 'SESS-PMC-02',
+        slot_id: 'SLOT-WED-3',
+        room_id: 'RM-AL201',
+        faculty_id: 'FAC-PMC',
+        batch_ids: ['BATCH-BTECH-CE'],
+        created_at: new Date().toISOString(),
+      },
+      {
+        entry_id: 'ENT-VBN-1',
+        timetable_id: 'TT-2026-ODD',
+        session_id: 'SESS-VBN-01',
+        slot_id: 'SLOT-THU-4',
+        room_id: 'RM-AL202',
+        faculty_id: 'FAC-VBN',
+        batch_ids: ['BATCH-BTECH-IT'],
         created_at: new Date().toISOString(),
       },
     ];

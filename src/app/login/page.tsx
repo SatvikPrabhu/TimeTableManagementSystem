@@ -25,7 +25,7 @@ export default function LoginPage() {
   const router = useRouter();
   const [role, setRole] = useState<'coordinator' | 'faculty' | 'student'>('coordinator');
   const [email, setEmail] = useState('coordinator@vjti.ac.in');
-  const [password, setPassword] = useState('vjti@2026');
+  const [password, setPassword] = useState('12345678');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,15 +37,15 @@ export default function LoginPage() {
       dest: '/',
     },
     faculty: {
-      name: 'Prof. M. A. Patil',
-      email: 'ma_patil@ce.vjti.ac.in',
-      desc: 'Assistant Professor, Computer Engineering',
+      name: 'Prof. P. M. Chawan',
+      email: 'tanishparekh03@gmail.com',
+      desc: 'Faculty Member, Computer Engineering (tanishparekh03@gmail.com)',
       dest: '/faculty',
     },
     student: {
       name: 'VJTI Student',
-      email: 'student@vjti.ac.in',
-      desc: 'Third Year Computer Engineering (Div A)',
+      email: 'student@dummy.ttms.local',
+      desc: 'Computer Engineering Department Student',
       dest: '/timetable',
     },
   };
@@ -53,7 +53,7 @@ export default function LoginPage() {
   const handleRoleSelect = (selected: 'coordinator' | 'faculty' | 'student') => {
     setRole(selected);
     setEmail(demoAccounts[selected].email);
-    setPassword('vjti@2026');
+    setPassword('12345678');
     setError(null);
   };
 
@@ -207,7 +207,7 @@ export default function LoginPage() {
                   placeholder="••••••••"
                 />
               </div>
-              <p className="text-[10px] text-slate-400 mt-1">Default demo password: vjti@2026</p>
+              <p className="text-[10px] text-slate-400 mt-1">Default password: 12345678</p>
             </div>
 
             <button

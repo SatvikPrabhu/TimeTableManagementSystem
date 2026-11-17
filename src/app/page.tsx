@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Header from '../components/Header';
 import Sidebar, { NavTab } from '../components/Sidebar';
 import DashboardOverview from '../components/DashboardOverview';
@@ -51,6 +52,23 @@ import { detectAllConflicts, MasterDataContext } from '../lib/conflictDetector';
 import { generateTimetable, SchedulingResult } from '../lib/schedulingAlgorithm';
 
 export default function CoordinatorPortal() {
+  const router = useRouter();
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+
+  useEffect(() => {
+    try {
+      const token = localStorage.getItem('vjti_auth_token');
+      const userStr = localStorage.getItem('vjti_auth_user');
+      if (!token || !userStr) {
+        router.replace('/login');
+        return;
+      }
+      setIsAuthenticated(true);
+    } catch (e) {
+      router.replace('/login');
+    }
+  }, [router]);
+
   // Primary TTMS State
   const [timetable, setTimetable] = useState<Timetable>(initialTimetable);
   const [sessions, setSessions] = useState<Session[]>(initialSessions);
@@ -472,6 +490,17 @@ export default function CoordinatorPortal() {
 
   const handleAddBatch = (b: Batch) => setBatches([...batches, b]);
   const handleDeleteBatch = (id: string) => setBatches(batches.filter((b) => b.Batch_ID !== id));
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white font-sans">
+        <div className="flex flex-col items-center space-y-3">
+          <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm text-slate-300 font-medium">Checking institutional authentication...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-100/70 font-sans">

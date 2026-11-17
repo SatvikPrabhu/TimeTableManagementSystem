@@ -145,13 +145,20 @@ export default function Header({
                 <p className="text-xs font-bold text-slate-800 leading-none">Dr. V. M. Phalle</p>
                 <p className="text-[11px] text-slate-500 mt-0.5">TT Committee Coordinator</p>
               </div>
-              <a
-                href="/login"
+              <button
+                type="button"
+                onClick={() => {
+                  try {
+                    localStorage.removeItem('vjti_auth_token');
+                    localStorage.removeItem('vjti_auth_user');
+                  } catch (e) {}
+                  window.location.href = '/login';
+                }}
                 className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors ml-1"
                 title="Switch User / Logout"
               >
                 <span className="text-xs font-bold text-indigo-600 hover:underline">Exit</span>
-              </a>
+              </button>
             </div>
           </div>
         </div>

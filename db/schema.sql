@@ -163,7 +163,7 @@ CREATE TABLE IF NOT EXISTS substitutions (
     rescheduled_room_id VARCHAR(50) REFERENCES rooms(room_id) ON DELETE SET NULL,
     sub_date DATE NOT NULL,
     action VARCHAR(20) NOT NULL CHECK (action IN ('Substituted', 'Rescheduled')),
-    status VARCHAR(20) NOT NULL CHECK (status IN ('Pending', 'Approved', 'Rejected')),
+    status VARCHAR(20) NOT NULL CHECK (status IN ('Pending', 'Approved', 'Rejected', 'OPEN_FOR_CLAIM', 'CLAIMED', 'Confirmed')),
     logged_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 

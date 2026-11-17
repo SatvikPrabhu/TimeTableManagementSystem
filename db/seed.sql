@@ -22,7 +22,7 @@ INSERT INTO users (user_id, name, email, password_hash, role, department_id) VAL
 -- REAL FACULTY EMAIL FOR TESTING:
 ('u-pmc', 'Prof. P. M. Chawan', 'tanishparekh03@gmail.com', '$2a$10$wN9aEaVbE.yF961o1F3nDeGkP0BlnRzI3aC2o.y1J5rYI06Xv8Mne', 'faculty', 'dept-ce'),
 -- DUMMY FACULTY EMAILS (SAFE FROM ACCIDENTAL EMAILS):
-('u-vbn', 'Dr. V. B. Nikam', 'vbnikam@dummy.ttms.local', '$2a$10$wN9aEaVbE.yF961o1F3nDeGkP0BlnRzI3aC2o.y1J5rYI06Xv8Mne', 'faculty', 'dept-ce'),
+('u-vbn', 'Dr. V. B. Nikam', 'tanishparekh59@gmail.com', '$2a$10$wN9aEaVbE.yF961o1F3nDeGkP0BlnRzI3aC2o.y1J5rYI06Xv8Mne', 'faculty', 'dept-ce'),
 ('u-mrs', 'Dr. M. R. Shirole', 'mrshirole@dummy.ttms.local', '$2a$10$wN9aEaVbE.yF961o1F3nDeGkP0BlnRzI3aC2o.y1J5rYI06Xv8Mne', 'faculty', 'dept-ce'),
 ('u-mmc', 'Dr. M. M. Chandane', 'mmchandane@dummy.ttms.local', '$2a$10$wN9aEaVbE.yF961o1F3nDeGkP0BlnRzI3aC2o.y1J5rYI06Xv8Mne', 'faculty', 'dept-ce'),
 ('u-scs', 'Prof. S. C. Shrawne', 'scshrawne@dummy.ttms.local', '$2a$10$wN9aEaVbE.yF961o1F3nDeGkP0BlnRzI3aC2o.y1J5rYI06Xv8Mne', 'faculty', 'dept-ce'),
@@ -59,7 +59,7 @@ ON CONFLICT (user_id) DO UPDATE SET email = EXCLUDED.email, name = EXCLUDED.name
 -- 4. FACULTY ROSTER (1 Real Email + 30 Dummy Emails)
 INSERT INTO faculty (faculty_id, user_id, department_id, name, email, max_weekly_load) VALUES
 ('FAC-PMC', 'u-pmc', 'dept-ce', 'Prof. P. M. Chawan', 'tanishparekh03@gmail.com', 16),
-('FAC-VBN', 'u-vbn', 'dept-ce', 'Dr. V. B. Nikam', 'vbnikam@dummy.ttms.local', 14),
+('FAC-VBN', 'u-vbn', 'dept-ce', 'Dr. V. B. Nikam', 'tanishparekh59@gmail.com', 14),
 ('FAC-MRS', 'u-mrs', 'dept-ce', 'Dr. M. R. Shirole', 'mrshirole@dummy.ttms.local', 14),
 ('FAC-MMC', 'u-mmc', 'dept-ce', 'Dr. M. M. Chandane', 'mmchandane@dummy.ttms.local', 16),
 ('FAC-SCS', 'u-scs', 'dept-ce', 'Prof. S. C. Shrawne', 'scshrawne@dummy.ttms.local', 16),

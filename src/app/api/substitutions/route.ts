@@ -3,6 +3,7 @@ import { SubstitutionService } from '@/server/services/SubstitutionService';
 import { db } from '@/server/db';
 
 export async function GET(req: Request) {
+  await db.ensureInitialized();
   const { searchParams } = new URL(req.url);
   const isOpen = searchParams.get('open') === 'true' || searchParams.get('status') === 'OPEN_FOR_CLAIM';
   const facultyId = searchParams.get('facultyId') || undefined;
@@ -18,6 +19,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
+    await db.ensureInitialized();
     const body = await req.json();
     const result = SubstitutionService.confirmSubstitution({
       leaveId: body.leave_id,

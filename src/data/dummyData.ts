@@ -21,36 +21,42 @@ export const initialUsers: User[] = [
     User_ID: 'u-coord',
     User_Name: 'Dr. V. M. Phalle (Coordinator)',
     Role: 'Coordinator',
-    Password_Hash: '$2a$10$wN9aEaVbE.yF961o1F3nDeGkP0BlnRzI3aC2o.y1J5rYI06Xv8Mne',
+    Password_Hash: '$2b$10$FFalzFCkYkUd5usodRgn2ONNJWPZhoRG9u281X2eDsCu16qRBHntq',
     Email: 'coordinator@dummy.ttms.local',
   },
   {
     User_ID: 'u-pmc',
     User_Name: 'Prof. P. M. Chawan',
     Role: 'Faculty',
-    Password_Hash: '$2a$10$wN9aEaVbE.yF961o1F3nDeGkP0BlnRzI3aC2o.y1J5rYI06Xv8Mne',
+    Password_Hash: '$2b$10$FFalzFCkYkUd5usodRgn2ONNJWPZhoRG9u281X2eDsCu16qRBHntq',
     Email: 'tanishparekh03@gmail.com',
+  },
+  {
+    User_ID: 'u-vbn',
+    User_Name: 'Dr. V. B. Nikam',
+    Role: 'Faculty',
+    Password_Hash: '$2b$10$FFalzFCkYkUd5usodRgn2ONNJWPZhoRG9u281X2eDsCu16qRBHntq',
+    Email: 'tanishparekh59@gmail.com',
   },
   {
     User_ID: 'u-rp',
     User_Name: 'Prof. Riddhi Patil',
     Role: 'Faculty',
-    Password_Hash: '$2a$10$wN9aEaVbE.yF961o1F3nDeGkP0BlnRzI3aC2o.y1J5rYI06Xv8Mne',
+    Password_Hash: '$2b$10$FFalzFCkYkUd5usodRgn2ONNJWPZhoRG9u281X2eDsCu16qRBHntq',
     Email: 'rpatil@dummy.ttms.local',
   },
   {
     User_ID: 'u-stud',
-    User_Name: 'Tanish Parekh (VJTI Student)',
+    User_Name: 'VJTI Student',
     Role: 'Student',
-    Password_Hash: '$2a$10$wN9aEaVbE.yF961o1F3nDeGkP0BlnRzI3aC2o.y1J5rYI06Xv8Mne',
-    Email: 'tanishparekh59@gmail.com',
+    Password_Hash: '$2b$10$FFalzFCkYkUd5usodRgn2ONNJWPZhoRG9u281X2eDsCu16qRBHntq',
+    Email: 'student@dummy.ttms.local',
   },
 ];
 
-// 31 Institutional Faculty from VJTI CE & IT Departments (Sanitized + 1 Real Whitelisted Email)
 export const initialFaculty: Faculty[] = [
   { Faculty_ID: 'FAC-PMC', Faculty_Name: 'Prof. P. M. Chawan', Department: 'Computer Engineering', Max_Weekly_Load: 16, Email: 'tanishparekh03@gmail.com' },
-  { Faculty_ID: 'FAC-VBN', Faculty_Name: 'Dr. V. B. Nikam', Department: 'Computer Engineering', Max_Weekly_Load: 14, Email: 'vbnikam@dummy.ttms.local' },
+  { Faculty_ID: 'FAC-VBN', Faculty_Name: 'Dr. V. B. Nikam', Department: 'Computer Engineering', Max_Weekly_Load: 14, Email: 'tanishparekh59@gmail.com' },
   { Faculty_ID: 'FAC-MRS', Faculty_Name: 'Dr. M. R. Shirole', Department: 'Computer Engineering', Max_Weekly_Load: 14, Email: 'mrshirole@dummy.ttms.local' },
   { Faculty_ID: 'FAC-MMC', Faculty_Name: 'Dr. M. M. Chandane', Department: 'Computer Engineering', Max_Weekly_Load: 16, Email: 'mmchandane@dummy.ttms.local' },
   { Faculty_ID: 'FAC-SCS', Faculty_Name: 'Prof. S. C. Shrawne', Department: 'Computer Engineering', Max_Weekly_Load: 16, Email: 'scshrawne@dummy.ttms.local' },
@@ -411,6 +417,36 @@ export const initialSessions: Session[] = [
   // Third Year TY B.Tech (CE) (Room AL 202 & Labs)
   // ---------------------------------------------------------
   {
+    Session_ID: 'SES-PMC-01',
+    Timetable_ID: 'TT-2026-ODD',
+    Subject_ID: 'SUB-PROJECT',
+    Faculty_ID: 'FAC-PMC',
+    Batch_ID: 'BATCH-BTECH-CE',
+    Room_ID: 'RM-AL201',
+    Slot_ID: 'SLOT-TUE-3',
+    Session_Type: 'Lecture',
+  },
+  {
+    Session_ID: 'SES-PMC-02',
+    Timetable_ID: 'TT-2026-ODD',
+    Subject_ID: 'SUB-PROJECT',
+    Faculty_ID: 'FAC-PMC',
+    Batch_ID: 'BATCH-BTECH-CE',
+    Room_ID: 'RM-AL201',
+    Slot_ID: 'SLOT-WED-3',
+    Session_Type: 'Lecture',
+  },
+  {
+    Session_ID: 'SES-VBN-01',
+    Timetable_ID: 'TT-2026-ODD',
+    Subject_ID: 'SUB-CC-IT',
+    Faculty_ID: 'FAC-VBN',
+    Batch_ID: 'BATCH-BTECH-IT',
+    Room_ID: 'RM-AL202',
+    Slot_ID: 'SLOT-THU-4',
+    Session_Type: 'Lecture',
+  },
+  {
     Session_ID: 'SES-TY-01',
     Timetable_ID: 'TT-2026-ODD',
     Subject_ID: 'SUB-CC-CE',
@@ -526,28 +562,9 @@ export const initialSessions: Session[] = [
   },
 ];
 
-export const initialLeaveRequests: LeaveRequest[] = [
-  {
-    Leave_ID: 'LEV_001',
-    Faculty_ID: 'FAC-HCD',
-    From_Date: '2026-10-20',
-    To_Date: '2026-10-20',
-    Reason: 'Attending IEEE AI & Deep Learning Summit at IIT Bombay',
-    Status: 'Reported',
-  },
-];
+export const initialLeaveRequests: LeaveRequest[] = [];
 
-export const initialSubstitutions: Substitution[] = [
-  {
-    Sub_ID: 'SUB_REC_001',
-    Leave_ID: 'LEV_001',
-    Session_ID: 'SES-BTECH-04', // DL Lecture on Tue P4
-    Substitute_Faculty_ID: 'FAC-AK', // Prof. Akhhil Kulal (Qualified in Deep Learning)
-    Sub_Date: '2026-10-20',
-    Action: 'Substituted',
-    Status: 'Suggested',
-  },
-];
+export const initialSubstitutions: Substitution[] = [];
 
 export const initialChangeLogs: ChangeLog[] = [
   {

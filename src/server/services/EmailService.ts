@@ -1,9 +1,3 @@
-// =============================================================================
-// VJTI Time Table Management System (TTMS)
-// EmailService: Centralized Dispatcher & Sandbox Whitelist Guard
-// Guarantees zero accidental emails to real institutional faculty addresses.
-// =============================================================================
-
 export interface EmailOutboxLog {
   id: string;
   to: string;
@@ -23,25 +17,22 @@ export interface SendEmailOptions {
   from?: string;
 }
 
-// STRICT HARDCODED SANDBOX WHITELIST GUARD
 export const ALLOWED_REAL_EMAILS = new Set<string>([
-  'tanishparekh03@gmail.com', // PMC Faculty Test Recipient
-  'tanishparekh59@gmail.com', // Student Test Recipient
+  'tanishparekh03@gmail.com',
+  'tanishparekh59@gmail.com',
 ]);
 
 export class EmailService {
   private static outboxLogs: EmailOutboxLog[] = [];
 
-  /**
-   * Returns current outbox logs
-   */
   public static getOutboxLogs(): EmailOutboxLog[] {
     return [...this.outboxLogs];
   }
 
-  /**
-   * Dispatches email or safely suppresses it according to whitelist rules.
-   */
+  public static clearOutboxLogs(): void {
+    this.outboxLogs = [];
+  }
+
   public static async sendEmail(options: SendEmailOptions): Promise<{
     sent: string[];
     suppressed: string[];
@@ -63,13 +54,10 @@ export class EmailService {
       const normalized = recipient.toLowerCase();
       const logId = `EMAIL-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
 
-      // 1. Sandbox Guard Check
       const isAllowed = ALLOWED_REAL_EMAILS.has(normalized);
       const isDummyDomain = normalized.endsWith('@dummy.ttms.local');
 
-      // If sandbox is active and email is not explicitly in test whitelist (or is a dummy local address)
       if (isSandboxActive && (!isAllowed || isDummyDomain)) {
-        // Suppress email to prevent any real faculty/user from receiving unexpected messages
         const suppressedLog: EmailOutboxLog = {
           id: logId,
           to: recipient,
@@ -80,16 +68,13 @@ export class EmailService {
           timestamp: new Date().toISOString(),
           reason: isDummyDomain
             ? 'Blocked by Sandbox Guard: Dummy domain recipient (@dummy.ttms.local)'
-            : 'Blocked by Sandbox Guard: Non-whitelisted external recipient (Set ENABLE_EMAIL_SANDBOX=false in .env to disable)',
+            : 'Blocked by Sandbox Guard: Non-whitelisted external recipient',
         };
         this.outboxLogs.push(suppressedLog);
         result.suppressed.push(recipient);
-        // Console simulation log
-        console.log(`[EmailService: SANDBOX_SUPPRESSED] To: ${recipient} | Subject: "${options.subject}"`);
         continue;
       }
 
-      // 2. Check SMTP configuration
       const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
       const smtpPort = process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT, 10) : 465;
       const smtpUser = process.env.SMTP_USER;
@@ -103,7 +88,6 @@ export class EmailService {
 
       if (!isPlaceholderConfig && smtpHost && smtpUser && smtpPass) {
         try {
-          // Attempt real Nodemailer dispatch
           let nodemailer: any;
           try {
             nodemailer = require('nodemailer');
@@ -140,11 +124,9 @@ export class EmailService {
               timestamp: new Date().toISOString(),
             });
             result.sent.push(recipient);
-            console.log(`[EmailService: SENT] Successfully dispatched to ${recipient}`);
             continue;
           }
         } catch (err: any) {
-          console.error(`[EmailService: FAILED] Error dispatching to ${recipient}:`, err?.message || err);
           this.outboxLogs.push({
             id: logId,
             to: recipient,
@@ -160,7 +142,6 @@ export class EmailService {
         }
       }
 
-      // Fallback: SMTP credentials not provided or placeholder, record as SIMULATED
       this.outboxLogs.push({
         id: logId,
         to: recipient,
@@ -174,7 +155,6 @@ export class EmailService {
           : 'SMTP env vars not configured; simulated successfully.',
       });
       result.sent.push(recipient);
-      console.log(`[EmailService: SIMULATED] To: ${recipient} | Subject: "${options.subject}"`);
     }
 
     return result;

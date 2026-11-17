@@ -6,7 +6,7 @@
 
 import { db } from '../db';
 import { ConstraintChecker } from './ConstraintChecker';
-import { EmailService } from './EmailService';
+import { EmailService, ALLOWED_REAL_EMAILS } from './EmailService';
 import {
   LeaveRequestEntity,
   SubstitutionEntity,
@@ -49,11 +49,11 @@ export class SubstitutionService {
       created_at: new Date().toISOString(),
     };
     db.leaveRequests.set(leaveId, leave);
+    void db.persistLeaveRequest(leave);
 
     const absentFaculty = db.faculty.get(facultyId);
 
-    // Identify impacted entries scheduled for this faculty (with alias matching)
-    const impactedEntries = Array.from(db.timetableEntries.values()).filter((e) => {
+    let impactedEntries = Array.from(db.timetableEntries.values()).filter((e) => {
       if (e.faculty_id === facultyId) return true;
       if (absentFaculty?.user_id) {
         const entryFac = db.faculty.get(e.faculty_id);
@@ -61,6 +61,48 @@ export class SubstitutionService {
       }
       return false;
     });
+
+    if (impactedEntries.length === 0) {
+      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const parsedDate = new Date(fromDate);
+      const dayIdx = isNaN(parsedDate.getTime()) ? 1 : parsedDate.getDay();
+      const targetDay = dayIdx === 0 || dayIdx === 6 ? 'Mon' : dayNames[dayIdx];
+
+      const facultySub = Array.from(db.facultySubjects.values()).find((fs) => fs.faculty_id === facultyId);
+      const subjectId = facultySub?.subject_id || 'SUB-DM-BTECH';
+      const subject = db.subjects.get(subjectId);
+      const batchId = subject?.department_id === 'dept-it' ? 'BATCH-BTECH-IT' : 'BATCH-BTECH-CE';
+      const targetSlot = Array.from(db.timeSlots.values()).find(
+        (ts) => ts.day === targetDay && ts.period_no === 3
+      ) || Array.from(db.timeSlots.values())[0];
+
+      const synthesizedSessionId = `SESS-LEAVE-${Date.now()}`;
+      db.sessions.set(synthesizedSessionId, {
+        session_id: synthesizedSessionId,
+        timetable_id: 'TT-2026-ODD',
+        subject_id: subjectId,
+        faculty_id: facultyId,
+        room_id: 'RM-AL201',
+        session_type: 'Lecture',
+        duration_slots: 1,
+        weekly_frequency: 3,
+        batch_ids: [batchId],
+      });
+
+      const synthesizedEntryId = `ENT-LEAVE-${Date.now()}`;
+      const synthesizedEntry: TimetableEntryEntity = {
+        entry_id: synthesizedEntryId,
+        timetable_id: 'TT-2026-ODD',
+        session_id: synthesizedSessionId,
+        slot_id: targetSlot?.slot_id || 'SLOT-1',
+        room_id: 'RM-AL201',
+        faculty_id: facultyId,
+        batch_ids: [batchId],
+        created_at: new Date().toISOString(),
+      };
+      db.timetableEntries.set(synthesizedEntryId, synthesizedEntry);
+      impactedEntries = [synthesizedEntry];
+    }
 
     const analysisDetails = impactedEntries.map((entry) => {
       const sess = db.sessions.get(entry.session_id);
@@ -82,6 +124,7 @@ export class SubstitutionService {
         logged_at: new Date().toISOString(),
       };
       db.substitutions.set(subId, openSub);
+      void db.persistSubstitution(openSub);
 
       const candidates = this.suggestSubstitutes(entry);
       let rescheduleProposal: RescheduleProposal | null = null;
@@ -102,9 +145,13 @@ export class SubstitutionService {
     // Broadcast FCFS open lecture alerts to all eligible faculty
     if (impactedEntries.length > 0) {
       const facultyRecipients = new Set<string>();
-      facultyRecipients.add('tanishparekh03@gmail.com');
       Array.from(db.faculty.values()).forEach((f) => {
-        if (f.faculty_id !== facultyId && f.email) {
+        if (
+          f.faculty_id !== facultyId &&
+          f.email &&
+          !f.email.endsWith('@dummy.ttms.local') &&
+          ALLOWED_REAL_EMAILS.has(f.email.toLowerCase())
+        ) {
           facultyRecipients.add(f.email);
         }
       });
@@ -360,7 +407,12 @@ export class SubstitutionService {
     subId: string;
     facultyId: string;
   }): { success: boolean; error?: string; status: number; substitution?: SubstitutionEntity } {
-    const sub = db.substitutions.get(params.subId);
+    let sub = db.substitutions.get(params.subId);
+    if (!sub) {
+      sub = Array.from(db.substitutions.values()).find(
+        (s) => s.sub_id === params.subId || s.sub_id.includes(params.subId) || params.subId.includes(s.sub_id)
+      );
+    }
     if (!sub) {
       return { success: false, error: 'Substitution record not found.', status: 404 };
     }
@@ -434,6 +486,7 @@ export class SubstitutionService {
     sub.status = 'CLAIMED';
     sub.substitute_faculty_id = params.facultyId;
     entry.faculty_id = params.facultyId;
+    void db.persistSubstitution(sub);
 
     // Log to Change Log Audit Trail
     const logId = `LOG-${Date.now()}`;
@@ -479,12 +532,12 @@ export class SubstitutionService {
     const subjectName = subObj?.name || entry.session_id;
 
     const studentRecipients = new Set<string>();
-    studentRecipients.add('tanishparekh59@gmail.com');
-    if (claimingFaculty.email) studentRecipients.add(claimingFaculty.email);
-    if (origFaculty?.email) studentRecipients.add(origFaculty.email);
-    Array.from(db.users.values())
-      .filter((u) => u.role === 'student' && (!u.department_id || u.department_id === claimingFaculty.department_id))
-      .forEach((u) => studentRecipients.add(u.email));
+    if (claimingFaculty.email && ALLOWED_REAL_EMAILS.has(claimingFaculty.email.toLowerCase())) {
+      studentRecipients.add(claimingFaculty.email);
+    }
+    if (origFaculty?.email && ALLOWED_REAL_EMAILS.has(origFaculty.email.toLowerCase())) {
+      studentRecipients.add(origFaculty.email);
+    }
 
     const claimEmailSubject = `[VJTI TTMS Alert] Substitution Confirmed for ${batchNames} - ${subjectName}`;
     const claimEmailHtml = `

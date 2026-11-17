@@ -8,6 +8,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   Calendar,
   Clock,
@@ -87,12 +88,54 @@ interface LeaveRecord {
 }
 
 export default function FacultyPortalPage() {
+  const router = useRouter();
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [faculty, setFaculty] = useState<FacultyProfile>({
     faculty_id: 'FAC-PMC',
     name: 'Prof. P. M. Chawan',
     department: 'Computer Engineering',
     max_weekly_load: 16,
   });
+
+  useEffect(() => {
+    try {
+      const token = localStorage.getItem('vjti_auth_token');
+      const userStr = localStorage.getItem('vjti_auth_user');
+      if (!token || !userStr) {
+        router.replace('/login');
+        return;
+      }
+      const user = JSON.parse(userStr);
+      if (user.role !== 'faculty' && user.role !== 'coordinator') {
+        router.replace('/login');
+        return;
+      }
+      const matched = initialFaculty.find(
+        (f) =>
+          (user.faculty_id && f.Faculty_ID === user.faculty_id) ||
+          (user.email && f.Email.toLowerCase() === user.email.toLowerCase()) ||
+          (user.user_id && f.Faculty_ID.toLowerCase().includes(user.user_id.replace('u-', '')))
+      );
+      if (matched) {
+        setFaculty({
+          faculty_id: matched.Faculty_ID,
+          name: matched.Faculty_Name,
+          department: matched.Department,
+          max_weekly_load: matched.Max_Weekly_Load,
+        });
+      } else if (user.name) {
+        setFaculty({
+          faculty_id: user.faculty_id || 'FAC-PMC',
+          name: user.name,
+          department: user.department_id === 'dept-it' ? 'Information Technology' : 'Computer Engineering',
+          max_weekly_load: 16,
+        });
+      }
+      setIsAuthenticated(true);
+    } catch {
+      router.replace('/login');
+    }
+  }, [router]);
 
   const [schedule, setSchedule] = useState<ScheduleEntry[]>([]);
   const [openSubstitutions, setOpenSubstitutions] = useState<OpenSubstitution[]>([]);
@@ -287,6 +330,12 @@ export default function FacultyPortalPage() {
     fetchMyLeaves();
     fetchMyClaimedSubs();
     fetchFacultyAvailability();
+    const interval = setInterval(() => {
+      fetchOpenClaims();
+      fetchMyLeaves();
+      fetchMyClaimedSubs();
+    }, 4000);
+    return () => clearInterval(interval);
   }, [fetchSchedule, fetchOpenClaims, fetchMyLeaves, fetchMyClaimedSubs, fetchFacultyAvailability]);
 
   const assignedHours = schedule.length;
@@ -360,6 +409,20 @@ export default function FacultyPortalPage() {
     }
   };
 
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center font-sans">
+        <div className="text-center p-8 bg-white rounded-2xl border border-slate-200 shadow-sm max-w-sm w-full">
+          <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-bold mx-auto mb-3 shadow-md shadow-indigo-100 animate-pulse">
+            V
+          </div>
+          <h2 className="text-sm font-bold text-slate-800">Verifying Faculty Authentication...</h2>
+          <p className="text-xs text-slate-400 mt-1">Checking secure session credentials</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
       {/* Faculty Portal Header */}
@@ -385,32 +448,14 @@ export default function FacultyPortalPage() {
           </div>
 
           <div className="flex items-center space-x-4">
-            {/* Faculty Switcher Profile Dropdown */}
             <div className="flex items-center space-x-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl">
-              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider hidden sm:inline">
-                Faculty:
+              <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+              <span className="text-xs font-bold text-slate-800">
+                {faculty.name}
               </span>
-              <select
-                value={faculty.faculty_id}
-                onChange={(e) => {
-                  const sel = initialFaculty.find((f) => f.Faculty_ID === e.target.value);
-                  if (sel) {
-                    setFaculty({
-                      faculty_id: sel.Faculty_ID,
-                      name: sel.Faculty_Name,
-                      department: sel.Department,
-                      max_weekly_load: sel.Max_Weekly_Load,
-                    });
-                  }
-                }}
-                className="text-xs font-bold bg-transparent text-slate-900 outline-none cursor-pointer"
-              >
-                {initialFaculty.map((f) => (
-                  <option key={f.Faculty_ID} value={f.Faculty_ID}>
-                    {f.Faculty_Name} ({f.Department === 'Computer Engineering' ? 'CE' : 'IT'})
-                  </option>
-                ))}
-              </select>
+              <span className="text-[10px] font-semibold text-slate-500 px-1.5 py-0.5 bg-white border border-slate-200 rounded">
+                {faculty.faculty_id}
+              </span>
             </div>
 
             <button
@@ -429,13 +474,19 @@ export default function FacultyPortalPage() {
               Coordinator View &rarr;
             </Link>
 
-            <Link
-              href="/login"
+            <button
+              onClick={() => {
+                try {
+                  localStorage.removeItem('vjti_auth_token');
+                  localStorage.removeItem('vjti_auth_user');
+                } catch {}
+                router.replace('/login');
+              }}
               className="p-2 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors"
               title="Sign Out"
             >
               <LogOut className="w-4 h-4" />
-            </Link>
+            </button>
           </div>
         </div>
       </header>

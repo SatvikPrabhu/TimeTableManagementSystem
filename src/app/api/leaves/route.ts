@@ -3,12 +3,14 @@ import { SubstitutionService } from '@/server/services/SubstitutionService';
 import { db } from '@/server/db';
 
 export async function GET() {
+  await db.ensureInitialized();
   const leaves = Array.from(db.leaveRequests.values());
   return NextResponse.json(leaves);
 }
 
 export async function POST(req: Request) {
   try {
+    await db.ensureInitialized();
     const { facultyId, fromDate, toDate, reason } = await req.json();
     if (!facultyId || !fromDate || !toDate) {
       return NextResponse.json({ error: 'Missing required leave fields' }, { status: 400 });

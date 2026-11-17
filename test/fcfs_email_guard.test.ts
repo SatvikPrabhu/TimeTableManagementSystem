@@ -137,6 +137,38 @@ describe('Task 3: First-Come, First-Served (FCFS) Open Claim System', () => {
     assert.strictEqual(claimRes.success, false);
     assert.strictEqual(claimRes.status, 400);
   });
+
+  test('Broadcast notification: When any faculty reports leave, broadcast email is sent to all peers', () => {
+    EmailService.clearOutboxLogs();
+    const res = SubstitutionService.reportLeave(
+      'FAC-VBN',
+      '2026-10-22',
+      '2026-10-22',
+      'Special Research Assignment'
+    );
+
+    assert.ok(res.leave);
+    assert.strictEqual(res.leave.status, 'Reported');
+    assert.ok(res.impactedEntries.length > 0);
+
+    const logs = EmailService.getOutboxLogs();
+    assert.ok(logs.length > 0);
+    const pmcLog = logs.find((l) => l.to.toLowerCase() === 'tanishparekh03@gmail.com');
+    assert.ok(pmcLog);
+    assert.ok(pmcLog.status === 'SENT' || pmcLog.status === 'SIMULATED');
+
+    const openSubs = SubstitutionService.getOpenSubstitutions('FAC-MRS');
+    assert.ok(openSubs.length > 0);
+    const targetSub = openSubs.find((s) => s.original_faculty_id === 'FAC-VBN');
+    assert.ok(targetSub);
+    assert.strictEqual(targetSub.is_eligible, true);
+  });
+
+  test('Leave & Substitution page state: dummy leave requests and substitutions are removed', () => {
+    const { initialLeaveRequests, initialSubstitutions } = require('../src/data/dummyData');
+    assert.strictEqual(initialLeaveRequests.length, 0);
+    assert.strictEqual(initialSubstitutions.length, 0);
+  });
 });
 
 describe('Task 4: Time Slot Period Continuity & Alignment', () => {

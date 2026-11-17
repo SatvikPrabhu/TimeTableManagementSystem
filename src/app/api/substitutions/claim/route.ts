@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
 import { SubstitutionService } from '@/server/services/SubstitutionService';
+import { db } from '@/server/db';
 
 export async function POST(req: Request) {
   try {
+    await db.ensureInitialized();
     const body = await req.json();
     const { sub_id, faculty_id } = body;
 

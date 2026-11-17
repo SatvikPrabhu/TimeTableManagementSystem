@@ -14,6 +14,7 @@ import {
   User,
   GraduationCap,
   LogOut,
+  Mail,
 } from 'lucide-react';
 
 export type NavTab =
@@ -24,7 +25,8 @@ export type NavTab =
   | 'workload'
   | 'leave'
   | 'occupancy'
-  | 'changelog';
+  | 'changelog'
+  | 'notifications';
 
 interface SidebarProps {
   activeTab: NavTab;

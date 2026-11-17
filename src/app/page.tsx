@@ -12,6 +12,7 @@ import WorkloadManager from '../components/WorkloadManager';
 import LeaveSubstitutionManager from '../components/LeaveSubstitutionManager';
 import RoomOccupancyView from '../components/RoomOccupancyView';
 import ChangeLogView from '../components/ChangeLogView';
+import NotificationBroadcastView from '../components/NotificationBroadcastView';
 import SessionEditModal from '../components/SessionEditModal';
 import NotificationModal from '../components/NotificationModal';
 

@@ -33,6 +33,13 @@ export class EmailService {
   private static outboxLogs: EmailOutboxLog[] = [];
 
   /**
+   * Returns current outbox logs
+   */
+  public static getOutboxLogs(): EmailOutboxLog[] {
+    return [...this.outboxLogs];
+  }
+
+  /**
    * Dispatches email or safely suppresses it according to whitelist rules.
    */
   public static async sendEmail(options: SendEmailOptions): Promise<{
@@ -50,6 +57,8 @@ export class EmailService {
       failed: [] as string[],
     };
 
+    const isSandboxActive = process.env.ENABLE_EMAIL_SANDBOX !== 'false';
+
     for (const recipient of recipients) {
       const normalized = recipient.toLowerCase();
       const logId = `EMAIL-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
@@ -58,8 +67,9 @@ export class EmailService {
       const isAllowed = ALLOWED_REAL_EMAILS.has(normalized);
       const isDummyDomain = normalized.endsWith('@dummy.ttms.local');
 
-      if (!isAllowed || isDummyDomain) {
-        // Suppress email to prevent any real faculty/user from receiving messages
+      // If sandbox is active and email is not explicitly in test whitelist (or is a dummy local address)
+      if (isSandboxActive && (!isAllowed || isDummyDomain)) {
+        // Suppress email to prevent any real faculty/user from receiving unexpected messages
         const suppressedLog: EmailOutboxLog = {
           id: logId,
           to: recipient,
@@ -70,7 +80,7 @@ export class EmailService {
           timestamp: new Date().toISOString(),
           reason: isDummyDomain
             ? 'Blocked by Sandbox Guard: Dummy domain recipient (@dummy.ttms.local)'
-            : 'Blocked by Sandbox Guard: Non-whitelisted external recipient',
+            : 'Blocked by Sandbox Guard: Non-whitelisted external recipient (Set ENABLE_EMAIL_SANDBOX=false in .env to disable)',
         };
         this.outboxLogs.push(suppressedLog);
         result.suppressed.push(recipient);
@@ -79,13 +89,19 @@ export class EmailService {
         continue;
       }
 
-      // 2. Whitelisted recipient: Check SMTP configuration
-      const smtpHost = process.env.SMTP_HOST;
-      const smtpPort = process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT, 10) : 587;
+      // 2. Check SMTP configuration
+      const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
+      const smtpPort = process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT, 10) : 465;
       const smtpUser = process.env.SMTP_USER;
       const smtpPass = process.env.SMTP_PASS;
 
-      if (smtpHost && smtpUser && smtpPass) {
+      const isPlaceholderConfig =
+        !smtpUser ||
+        !smtpPass ||
+        smtpUser.includes('PLACEHOLDER') ||
+        smtpPass.includes('PLACEHOLDER');
+
+      if (!isPlaceholderConfig && smtpHost && smtpUser && smtpPass) {
         try {
           // Attempt real Nodemailer dispatch
           let nodemailer: any;
@@ -107,7 +123,7 @@ export class EmailService {
             });
 
             await transporter.sendMail({
-              from: options.from || process.env.SMTP_FROM || '"VJTI TTMS Alert System" <no-reply@vjti.ac.in>',
+              from: options.from || process.env.SMTP_FROM || `"VJTI TTMS Alert System" <${smtpUser}>`,
               to: recipient,
               subject: options.subject,
               text: options.text,
@@ -144,7 +160,7 @@ export class EmailService {
         }
       }
 
-      // Fallback: SMTP env vars not set, record as SIMULATED
+      // Fallback: SMTP credentials not provided or placeholder, record as SIMULATED
       this.outboxLogs.push({
         id: logId,
         to: recipient,
@@ -153,21 +169,14 @@ export class EmailService {
         text: options.text,
         status: 'SIMULATED',
         timestamp: new Date().toISOString(),
-        reason: 'SMTP env vars not configured; simulated successfully',
+        reason: isPlaceholderConfig
+          ? 'Placeholder SMTP credentials in .env; email simulated safely.'
+          : 'SMTP env vars not configured; simulated successfully.',
       });
       result.sent.push(recipient);
-      console.log(`[EmailService: SIMULATED] To Whitelisted: ${recipient} | Subject: "${options.subject}"`);
+      console.log(`[EmailService: SIMULATED] To: ${recipient} | Subject: "${options.subject}"`);
     }
 
     return result;
   }
-
-  public static getOutboxLogs(): EmailOutboxLog[] {
-    return [...this.outboxLogs];
-  }
-
-  public static clearOutboxLogs(): void {
-    this.outboxLogs = [];
-  }
 }
-
